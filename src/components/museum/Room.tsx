@@ -39,6 +39,7 @@ import {
   subscribeProceduralTextures,
   woodGrainTexture,
 } from "./textures";
+import { PROP_LAYER } from "./layers";
 
 // The architecture of the hall: environment, ceiling light, floor, walls,
 // mouldings, laylight / lightbox, lighting track and benches.
@@ -714,12 +715,12 @@ export function Room({
       <mesh geometry={hall.gilt} material={mats.gilt} matrixAutoUpdate={false} />
       <mesh geometry={hall.marble} material={mats.marble} matrixAutoUpdate={false} />
       {/* small props: skipped by the floor reflection */}
-      <mesh geometry={hall.track} material={mats.track} matrixAutoUpdate={false} layers={1} />
+      <mesh geometry={hall.track} material={mats.track} matrixAutoUpdate={false} layers={PROP_LAYER} />
       <mesh
         geometry={hall.benchShadow}
         material={mats.benchShadow}
         matrixAutoUpdate={false}
-        layers={1}
+        layers={PROP_LAYER}
         renderOrder={1}
       />
       {/* a suite's room numbers over the doorways */}

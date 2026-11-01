@@ -20,6 +20,7 @@ The app reads the bundled snapshot, so that's all you need. Optional extras:
 npm run ingest
 npm run ingest -- --refresh
 npm run ingest -- --new      # artists just added to scripts/seed.ts: only they are re-checked (minutes)
+INGEST_ONLY="Caravaggio,Johannes Vermeer" npm run ingest   # only these seed artists: a quick development collection
 
 # Re-check the snapshot in place (non-artworks, images, dates, sizes,
 # copyright, credits) and write a report. --dry-run writes nothing.
@@ -189,11 +190,38 @@ Any Node host works (`npm run build && npm start`, or the Dockerfile). On
 Vercel the project builds as it is; set `DATABASE_URL` only if you use
 Postgres.
 
+## VR (WebXR)
+
+A gallery's "step inside" screen shows **Enter VR** wherever the browser offers an immersive session (the Quest
+Browser; a desktop with a headset linked). The code is in `src/components/museum/xr/`:
+
+- `session.ts`: entering and leaving, and where the visitor stands. The headset's pose is copied into the camera
+  every frame (the R3F camera has no parent), so everything that reads `camera.position` keeps working. The
+  visitor is moved by offsetting the session's reference space, not by moving the camera:
+  gallery = rig · headset space. `placeViewer`, `shiftViewer` and `turnViewer` change the rig.
+- `XRPlayer.tsx`: the left stick walks (kept in the hall by `confine`), the right stick snap-turns 30° or, pushed
+  forward, aims a teleport arc (stopped by cross walls, landing checked by `confine`). The trigger, or a pinch with
+  tracked hands, at a painting stands the visitor in front of it (`inspectPose`), and B or Y goes back. There are
+  no camera flights, jumps or crouching.
+- `XRBridge`: turns the floor's reflection off while in VR (it renders one eye's view, and costs a second pass) and
+  ends the session when the gallery unmounts. Walking through the end doors or taking the elevator to another
+  floor loads another page, which ends VR.
+- Render layers (`layers.ts`): small props, labels and the works' shadows are on layer 3. three.js uses layers 1
+  and 2 for the left and right eyes in a session.
+- On a standalone headset, Auto graphics picks its own tier (`quality.ts`): MSAA on, two area lights, no close-up
+  textures.
+
+Trying it on a Quest during development: WebXR needs a secure context. Over USB, `adb reverse tcp:3000 tcp:3000`
+makes `http://localhost:3000` on the headset reach the dev server. Over Wi-Fi, use `next dev --experimental-https`
+and open `https://<pc-ip>:3000`. On a desktop, Meta's Immersive Web Emulator extension stands in for a headset.
+
 ## Tests and tools
 
 - `node scripts/verify-e2e.mjs [baseUrl]`: timeline behaviour checks.
 - `node scripts/check-floors.mjs [baseUrl]`: desktop and touch floor navigation, elevator rides, history,
   direct links and 404s; set `VERIFY_REAL_IMAGES=1` to use the real artwork hosts instead of fixtures.
+- `node scripts/xr-check.mjs <slug> [baseUrl]`: VR in an emulated Quest 3 (IWER): entering, both eyes'
+  layers, walking, snap turn, walls, teleport, the trigger at a painting, leaving.
 - `node scripts/suite-check.mjs`: walks a gallery suite (collision, doorways,
   navigator, inspect).
 - `node scripts/perf-probe.mjs <slug> [baseUrl] [label]`: rendering cost.

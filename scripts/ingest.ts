@@ -50,6 +50,10 @@ const REFRESH = process.argv.includes("--refresh");
 // Licences, vetting and enrichment only for the artists the last museum.json does not have; the others stay as
 // that run left them.
 const NEW_ONLY = process.argv.includes("--new");
+// INGEST_ONLY="Caravaggio,Johannes Vermeer": only these seed artists (Wikipedia titles), for a quick development
+// collection; every period is still written so the timeline keeps its lanes.
+const ONLY = new Set((process.env.INGEST_ONLY ?? "").split(",").map((t) => t.trim()).filter(Boolean));
+const wantArtist = (title: string) => ONLY.size === 0 || ONLY.has(title);
 // Older caches contain only article works and a small Commons top-up.
 const INGEST_VERSION = 5;
 
@@ -754,7 +758,7 @@ async function main() {
 
     // Preserve seed order while overlapping independent article/file fetches.
     // The shared Wikimedia and WDQS limiters still bound provider requests.
-    const periodArtists = await Promise.all(period.artists.map((artistTitle) => artistLimit(async () => {
+    const periodArtists = await Promise.all(period.artists.filter(wantArtist).map((artistTitle) => artistLimit(async () => {
       let artist: ArtistOut | null = null;
       try {
         artist = await ingestArtist(artistTitle, period.slug);

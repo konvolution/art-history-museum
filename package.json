@@ -42,6 +42,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.184.1",
+    "iwer": "2.6.0",
     "playwright": "^1.60.0",
     "tsx": "^4.22.4",
     "typescript": "^5"

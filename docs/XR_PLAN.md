@@ -1,6 +1,14 @@
 # Plan: WebXR (Meta Quest) support and Cloudflare hosting
 
-Status: draft, 2026-11-01. Fork of `justdataplease/art-history-museum` at `33afff2`.
+Status: 2026-11-01. Fork of `justdataplease/art-history-museum` at `33afff2`.
+
+**Progress:** phases 0, 2 and 3 and the inspect part of 4 are done; see "VR (WebXR)" in `docs/DEVELOPMENT.md`.
+`scripts/xr-check.mjs` passes 13/13 in an emulated Quest 3. Not yet done: Cloudflare (phase 1), in-world
+panels and a wrist menu, on-device performance measurement, and audio in VR.
+
+One change from §3: the build does not use `@react-three/xr`. three already copies the headset pose into the
+parentless R3F camera, so the visitor is moved by offsetting the session's reference space (`xr/session.ts`).
+Every existing `camera.position` reader keeps working, and the 39-site sweep and the `XROrigin` are not needed.
 
 Goal: walk the existing artist galleries and custom rooms in VR on a Meta Quest from the Quest Browser, with
 an **Enter VR** button next to the current desktop and touch modes, and host the fork on Cloudflare.

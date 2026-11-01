@@ -11,10 +11,10 @@
 
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { PROP_LAYER } from "../layers";
 
 export type HeldKind = "marker" | "sword";
 
-const PROP_LAYER = 1;
 
 // ------------------------------------------------------------------ models
 

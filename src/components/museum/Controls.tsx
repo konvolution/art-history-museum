@@ -99,7 +99,7 @@ function collect(registry: Map<string, THREE.Mesh>): THREE.Object3D[] {
 /** Nearest painting under a ray, within `range` (monumental canvases can be
  *  picked from further away, in proportion to their size) and not behind a
  *  suite's cross wall (only through a doorway). */
-function pickPainting(
+export function pickPainting(
   ray: THREE.Raycaster,
   registry: Map<string, THREE.Mesh>,
   range: number,

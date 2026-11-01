@@ -58,6 +58,7 @@ import { isInspectFlying } from "./renderer-motion";
 import { useSetting } from "./settings";
 import { currentQuality } from "./quality";
 import type { Lod, SuiteRuntime } from "./suite-runtime";
+import { PROP_LAYER } from "./layers";
 
 // ------------------------------------------------------------------ tuning
 
@@ -75,8 +76,7 @@ const WEAVE_STRENGTH = 0.32;
 /** Strength of the cast wall shadow at rest. */
 const CAST_SHADOW = 0.62;
 
-// Layer 1: seen by the main camera, skipped by the floor reflection.
-const PROP_LAYER = 1;
+// PROP_LAYER (layers.ts): seen by the main camera, skipped by the floor reflection.
 // props that surface effects may land on (the soft shadows stay out)
 const FX_TARGET = { fxTarget: true };
 

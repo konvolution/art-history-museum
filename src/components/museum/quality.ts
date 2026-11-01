@@ -84,10 +84,19 @@ export function tierFor(choice: GraphicsChoice): QualityTier {
 
 let current: Quality = TIERS.full;
 
+/** A standalone headset's browser (Quest, Pico, Wolvic): a phone's graphics drawing two eyes at 72–90 Hz. */
+const HEADSET = /OculusBrowser|Quest|Pico|Wolvic/i;
+
+/** Auto on a headset: full's smoothing (jagged edges are glaring in a headset), but the lights and the textures
+ *  of fast (each area light costs every lit pixel twice; close-ups are the largest uploads, each a dropped frame). */
+const HEADSET_TIER: Quality = { ...TIERS.full, dprMax: 1, dprMin: 0.75, areaLights: 2, near: false, anisotropy: 8 };
+
 /** The settings a gallery starts with (read once, as its canvas is created; kept for what reads it later). */
 export function galleryQuality(): Quality {
   if (typeof window === "undefined") return TIERS.full;
-  return (current = TIERS[tierFor(getSettings().graphics)]);
+  const choice = getSettings().graphics;
+  if (choice === "auto" && HEADSET.test(navigator.userAgent)) return (current = HEADSET_TIER);
+  return (current = TIERS[tierFor(choice)]);
 }
 
 /** The tier the gallery on screen started with (its textures' filtering follows it). */
@@ -102,10 +111,17 @@ export function qualityOf(tier: QualityTier): Quality {
 // ---- what follows a change at once: the floor's reflection (room-floor.tsx reads it each frame)
 
 let reflection = true;
+/** In a VR session: the reflector draws one eye's view (wrong in stereo) at the cost of a second scene pass. */
+let immersive = false;
 const listeners = new Set<() => void>();
 
 export function reflectionOn(): boolean {
-  return reflection;
+  return reflection && !immersive;
+}
+export function setImmersive(on: boolean) {
+  if (immersive === on) return;
+  immersive = on;
+  listeners.forEach((f) => f());
 }
 export function setReflection(on: boolean) {
   if (reflection === on) return;

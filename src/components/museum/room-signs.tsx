@@ -18,7 +18,7 @@ import { blankPlacardTexture, fontFamilies, placardFontsReady } from "./exhibit-
 import { setRoomWindow, type IndexRange } from "./room-geometry";
 import type { SuiteRuntime } from "./suite-runtime";
 
-const PROP_LAYER = 1;
+import { PROP_LAYER } from "./layers";
 // surface effects may land on the signs
 const FX_TARGET = { fxTarget: true };
 /** Card proportions, size and texture row size. */

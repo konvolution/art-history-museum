@@ -28,6 +28,9 @@ import { FilmNook } from "@/components/cinema/FilmNook";
 import { rememberSteppedDown, setReflection, type Quality } from "./quality";
 import { useSetting } from "./settings";
 import type { CinemaRuntime } from "@/components/cinema/cinema-runtime";
+import { PROP_LAYER } from "./layers";
+import { isInXR, placeViewer, useInXR } from "./xr/session";
+import { XRBridge, XRPlayer } from "./xr/XRPlayer";
 
 export type { LockApi };
 
@@ -127,6 +130,7 @@ export const Gallery = memo(function Gallery(props: GalleryProps) {
   const { artist, layout, theme } = props;
   const meshRegistry = useRef(new Map<string, THREE.Mesh>());
   const focusSlug = props.inspect?.painting.slug ?? null;
+  const inXR = useInXR();
 
   // Every exhibit's track heads, planned up front; their lights are a fixed
   // pool in the runtime (one per head in a single room, POOL_MAX in a suite).
@@ -217,6 +221,13 @@ export const Gallery = memo(function Gallery(props: GalleryProps) {
   useEffect(() => {
     const api = props.teleportApi;
     if (!api) return;
+    /** Stand at (x, z) facing `yaw`: in a VR session by moving the floor (xr/session.ts), else the camera. */
+    const stand = (x: number, z: number, yaw: number) => {
+      if (isInXR()) return placeViewer(x, z, yaw);
+      camera.position.set(x, EYE_HEIGHT, z);
+      camera.rotation.set(0, yaw, 0, "YXZ");
+      camera.updateMatrixWorld();
+    };
     const tp: TeleportApi = {
       go(r: number) {
         const n = layout.rooms.length;
@@ -226,9 +237,7 @@ export const Gallery = memo(function Gallery(props: GalleryProps) {
         const d = layout.doorways[to - 1];
         const p = to === 0 ? { x: 0, z: spawnZ(layout) } : { x: d.x, z: d.z - d.thickness / 2 - 1.6 };
         confine(p, layout);
-        camera.position.set(p.x, EYE_HEIGHT, p.z);
-        camera.rotation.set(0, 0, 0, "YXZ");
-        camera.updateMatrixWorld();
+        stand(p.x, p.z, 0);
         runtime.teleport(to);
         invalidate();
       },
@@ -237,9 +246,7 @@ export const Gallery = memo(function Gallery(props: GalleryProps) {
         if (!n) return;
         const p = { x: n.view.x, z: n.view.z };
         confine(p, layout);
-        camera.position.set(p.x, EYE_HEIGHT, p.z);
-        camera.rotation.set(0, n.view.yaw, 0, "YXZ");
-        camera.updateMatrixWorld();
+        stand(p.x, p.z, n.view.yaw);
         runtime.teleport(n.room);
         invalidate();
       },
@@ -248,9 +255,7 @@ export const Gallery = memo(function Gallery(props: GalleryProps) {
         if (!lift) return this.go(0);
         const p = { x: lift.x, z: layout.hallLength / 2 - 2.1 };
         confine(p, layout);
-        camera.position.set(p.x, EYE_HEIGHT, p.z);
-        camera.rotation.set(0, Math.PI, 0, "YXZ");
-        camera.updateMatrixWorld();
+        stand(p.x, p.z, Math.PI);
         runtime.teleport(0);
         invalidate();
       },
@@ -295,7 +300,10 @@ export const Gallery = memo(function Gallery(props: GalleryProps) {
           />
         ) : null;
       })}
-      {props.touch ? (
+      <XRBridge />
+      {inXR ? (
+        <XRPlayer layout={layout} registry={meshRegistry.current} />
+      ) : props.touch ? (
         <TouchPlayer
           layout={layout}
           registry={meshRegistry.current}
@@ -393,6 +401,7 @@ function SuiteDirector({
 }) {
   const camera = useThree((s) => s.camera);
   const scene = useThree((s) => s.scene);
+  const gl = useThree((s) => s.gl);
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     runtime.setFocus(focusSlug);
@@ -408,23 +417,23 @@ function SuiteDirector({
   useEffect(() => {
     const w = window as unknown as { __MUSEUM_DEBUG__?: boolean; __museum?: unknown };
     if (!w.__MUSEUM_DEBUG__) return;
-    w.__museum = { camera, scene, layout: runtime.layout, runtime, invalidate, textureStats };
+    w.__museum = { camera, scene, gl, layout: runtime.layout, runtime, invalidate, textureStats };
     return () => {
       w.__museum = undefined;
     };
-  }, [camera, scene, runtime, invalidate]);
+  }, [camera, scene, gl, runtime, invalidate]);
   useFrame((state, dt) => {
     if (runtime.update(camera.position, dt)) state.invalidate();
   });
   return null;
 }
 
-/** The main camera also sees layer 1: small props that should not appear in
+/** The main camera also sees PROP_LAYER: small props that should not appear in
  *  the floor reflection live there (drei's reflector camera sees layer 0). */
 function CameraLayers() {
   const camera = useThree((s) => s.camera);
   useLayoutEffect(() => {
-    camera.layers.enable(1);
+    camera.layers.enable(PROP_LAYER);
   }, [camera]);
   return null;
 }

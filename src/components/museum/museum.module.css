@@ -457,6 +457,25 @@
   opacity: 0.92;
 }
 
+/* Enter VR (xr/EnterVR.tsx): on the "step inside" screens, where the browser offers a headset. */
+.enterVr {
+  margin-top: 6px;
+  padding: 12px 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(199, 169, 122, 0.7);
+  background: rgba(199, 169, 122, 0.16);
+  color: var(--light);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.enterVr:hover,
+.enterVr:focus-visible {
+  background: rgba(199, 169, 122, 0.3);
+}
+
 /* The settings (SettingsPanel.tsx): a button top-left under the audio guide's, a centred card. */
 .hudTools {
   position: absolute;

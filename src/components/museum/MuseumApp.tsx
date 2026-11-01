@@ -37,6 +37,7 @@ import styles from "./museum.module.css";
 import { SourceLink } from "@/components/timeline/SourceLink";
 import { ScreeningHud, useScreening } from "@/components/cinema/ScreeningHud";
 import { TouchStick } from "./TouchStick";
+import { EnterVR } from "./xr/EnterVR";
 
 const FOV = 55;
 /** Let the title on the doors register before they part. */
@@ -947,6 +948,7 @@ export function MuseumApp({
           }}
         >
           <p className={styles.resumePill}>{touch ? "Tap to walk on" : "Click, or press W, to walk on"}</p>
+          <EnterVR cameraRef={cameraRef} className={styles.enterVr} />
         </div>
       )}
 
@@ -969,6 +971,7 @@ export function MuseumApp({
             {touch ? "Tap" : "Click"} to step inside · {artist.paintings.length} works
             {roomInfo ? ` by ${roomInfo.artists.length} artists` : ""}
           </p>
+          <EnterVR cameraRef={cameraRef} className={styles.enterVr} />
           <p className="mus-start-credit">
             {artist.paintings.some((p) => p.imageUrl?.includes(".wikiart.org/"))
               ? "All credit goes to Wikipedia, Wikidata, Wikimedia Commons and WikiArt"

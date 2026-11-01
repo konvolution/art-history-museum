@@ -41,6 +41,7 @@ import { buildEggSplat, buildPaintSplat, buildPaintballSplat, stampShape, type B
 import { SPRAY_LIMITS, SprayCan, type SprayTarget } from "./spray";
 import type { Food } from "./store";
 import { PaintSurface, type Rect } from "./surface";
+import { PROP_LAYER } from "../layers";
 
 export type Quality = "high" | "low";
 
@@ -50,8 +51,7 @@ const QUALITY = {
   low: { ppm: 560, maxSide: 1024, maxPx: 650_000, budgetPx: 2_600_000, atlas: 1024, cell: 256, dryTick: 2 },
 } as const;
 
-/** Layer for everything the engine adds (main camera only: no floor reflection, no raycast). */
-const PROP_LAYER = 1;
+// PROP_LAYER (../layers.ts): everything the engine adds (main camera only: no floor reflection, no raycast).
 /** Paintballs per hopper; rounds per second while the trigger is held. */
 export const HOPPER = 200;
 const MARKER_RATE = 8;
