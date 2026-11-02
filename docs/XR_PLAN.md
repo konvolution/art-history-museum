@@ -315,11 +315,46 @@ down the suite). What makes crossing them worse in VR than on desktop:
    offer), and widen the slide's catch zone so the body lines up with the opening a little before reaching it.
 6. **Comfort while walking:** an optional vignette during stick movement (§4, not built yet).
 
-Which of these the device test hit most is an open question for the owner. Items 1–3 are likely, small, and
-first.
+The owner agrees with all of these (2026-11-01). Items 1–3 are small and come first.
 
 Check: `xr-check.mjs` adds a teleport aimed through a doorway at a normal upward angle (it must land in the next
 room), the next-room jump, and a walk at a doorway's jamb that ends in the next room.
+
+### 10.3 Things to point at: doors and the elevator (owner's request)
+
+Nothing on the end doors or the elevator says it can be used. In VR, every place that can take the visitor
+somewhere gets the same **affordance**: a round badge with an icon, shown when the visitor is in the same room
+and within ~8 m. The controller ray highlights it (a ring brightens and grows a little, plus a short haptic
+pulse), and the trigger uses it.
+
+- **End doors** (`ExitDoors`): a badge with an exit icon (arrow out of a door) on each door's card at about chest
+  height. The trigger: a fade, then the next or previous artist's gallery (its name is already on the card).
+  Walking through the door still works too.
+- **Elevator** (`Elevator`): a badge with an up/down icon on the call plate. The trigger calls the car (button
+  lit, chime, doors open: the existing `ElevatorApi.call`).
+- **Inside the car, between floors** (owner: "be able to go in and move between floors"). When the doors are
+  open, the visitor can walk (or teleport) into the car. `confine` gets an opening in the entrance wall the width
+  of the doors and the car's floor as allowed space, only while the doors are open. Inside, a floor panel on the
+  car's side wall lists the floors (the floor directory's labels: "Floor 2 · 1880–1890 · 74 works"). Each line is
+  a badge-style button for the ray. Choosing one closes the doors, plays a short ride (the car hums, the floor
+  indicator counts), then the next floor opens with the visitor already standing in its car facing out. That is
+  10.1's "stay in VR" step, with the car as its natural place: the visitor never sees a cut while moving
+  floors, because the car looks the same on every floor.
+- Desktop gets the badges too (hover with the crosshair, click). They are drawn in the scene, so the same code
+  serves both, and they could replace the HUD's E / Q hints.
+
+Badges are camera-facing discs (a canvas texture: circle, icon, a thin ring), on `PROP_LAYER`, with a hit disc
+larger than the drawing so a shaky ray still finds them. A shared `Affordance` component and a registry next to
+the paintings' registry, so `XRPlayer`'s ray tests both and prefers whichever is nearer.
+
+### 10.4 Backing away (owner's request)
+
+The left stick already walks backward (pull back: away from where the head faces, stopped by walls). Add the VR
+convention on the **right stick: pull back to step back** about 0.5 m in one fade-free hop. The direction is
+straight away from where the head faces, kept in the hall by `confine`. It re-arms like the snap turn: the
+stick returns to centre before the next step. It is useful right after the trigger's step-up to a painting, or
+when a turn leaves the visitor facing a wall. The right stick's directions then read: left/right turn, forward
+teleport, back step back.
 
 ### Phase 4b (insert before phase 5)
 
@@ -327,8 +362,10 @@ room), the next-room jump, and a walk at a doorway's jamb that ends in the next 
 |---|---|
 | Teleport through doorways (10.2.1) | 0.5 d |
 | Room jump on a button (10.2.2), fades (10.2.3) | 1 d |
-| Elevator and exit doors pressable with the controller ray (10.1) | 0.5–1 d |
-| Stay in VR across floors: try WebXR navigation on the Quest; else the in-page floor swap (10.1) | 0.5 d / 2–3 d |
+| Right stick back: step back (10.4) | 0.25 d |
+| Badges on the end doors and the elevator, pressable with the ray and the crosshair (10.3) | 1 d |
+| Walk into the elevator car; floor panel inside it (10.3) | 1–1.5 d |
+| Stay in VR across floors and galleries: try WebXR navigation on the Quest; else the in-page floor swap (10.1) | 0.5 d / 2–3 d |
 | Next-room preloading in VR (10.2.4), controller-relative steering (10.2.5) | 1–2 d |
 
 ## 11. Risks and open questions
