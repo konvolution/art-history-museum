@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // `npm run cf:deploy` (docs/DEVELOPMENT.md "Deploy")
+  "name": "vr-art-museum",
+  "main": "cf-worker.mjs",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+    // the data snapshot (src/lib/data-assets.ts): read by the Worker through ASSETS, a 404 for visitors (cf-worker.mjs)
+    "run_worker_first": ["/_data/*"]
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "vr-art-museum"
+    }
+  ],
+  "observability": { "enabled": true }
+}

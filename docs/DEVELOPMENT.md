@@ -190,6 +190,28 @@ Any Node host works (`npm run build && npm start`, or the Dockerfile). On
 Vercel the project builds as it is; set `DATABASE_URL` only if you use
 Postgres.
 
+### Cloudflare Workers
+
+The site runs as a Worker through OpenNext (`@opennextjs/cloudflare`; `open-next.config.ts`, `wrangler.jsonc`).
+The build runs on the machine that has `data/`:
+
+```bash
+npm run cf:build        # Linux / macOS / WSL: the Worker in .open-next, the data snapshot in its assets
+npm run cf:build:wsl    # Windows: the same build in WSL (scripts/cf-build-wsl.sh), copied back
+npm run cf:serve        # the built Worker on http://localhost:8787 (workerd, no account needed)
+npx wrangler login      # once
+npx wrangler deploy     # https://vr-art-museum.<account>.workers.dev
+```
+
+- OpenNext's build symlinks files, which Windows refuses without Developer Mode, hence the WSL script.
+- The pages are prerendered and served as built (the static-assets incremental cache): no revalidation, and no R2
+  or KV to set up. Rebuild and deploy to refresh them.
+- There is no `data/` on the Worker. `scripts/cf-data.mjs` copies the gallery snapshot (`museum.json`) into the
+  Worker's assets under `/_data/`, and the server reads it through the ASSETS binding (`src/lib/data-assets.ts`).
+  `cf-worker.mjs`, the Worker's entry, answers 404 for `/_data/*`, so visitors can't download it. `rooms.json`,
+  `phases.json` and the guide scripts are not copied, so those features are off there.
+- `scripts/xr-check.mjs` and `scripts/suite-check.mjs` take the Worker's URL: `http://localhost:8787`.
+
 ## VR (WebXR)
 
 A gallery's "step inside" screen shows **Enter VR** wherever the browser offers an immersive session (the Quest

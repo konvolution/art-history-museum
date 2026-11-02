@@ -3,7 +3,7 @@
 Status: 2026-11-01. Fork of `justdataplease/art-history-museum` at `33afff2`.
 
 **Progress:** phases 0, 2 and 3 and the inspect part of 4 are done; see "VR (WebXR)" in `docs/DEVELOPMENT.md`.
-`scripts/xr-check.mjs` passes 13/13 in an emulated Quest 3. Not yet done: Cloudflare (phase 1), in-world
+`scripts/xr-check.mjs` passes 13/13 in an emulated Quest 3. Phase 1 (Cloudflare) is built and checked locally in workerd (`npm run cf:build:wsl`, `cf:serve`). Next.js went from 16.2.9 to 16.4.2, which the adapter requires. Not yet done: in-world
 panels and a wrist menu, on-device performance measurement, and audio in VR.
 
 One change from §3: the build does not use `@react-three/xr`. three already copies the headset pose into the

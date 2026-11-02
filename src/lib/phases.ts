@@ -4,6 +4,7 @@
 import "server-only";
 import fs from "node:fs";
 import path from "node:path";
+import { onWorkers } from "./data-assets";
 import type { ArtistPhase, ArtistWithPaintings } from "./types";
 
 interface PhaseFile {
@@ -14,7 +15,8 @@ let data: PhaseFile | null | undefined;
 function read(): PhaseFile | null {
   if (data !== undefined) return data;
   const file = path.join(process.cwd(), "data", "site", "phases.json");
-  data = fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, "utf8")) as PhaseFile) : null;
+  // not on Cloudflare Workers (no data/ on disk; scripts/cf-data.mjs copies the gallery snapshot only)
+  data = !onWorkers && fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, "utf8")) as PhaseFile) : null;
   return data;
 }
 

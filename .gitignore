@@ -56,3 +56,7 @@ dev-server.log
 /dagster/
 /run_dagster.cmd
 __pycache__/
+
+# Cloudflare Workers build (npm run cf:build) and wrangler's local state
+/.open-next/
+/.wrangler/

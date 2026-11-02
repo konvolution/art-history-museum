@@ -1,0 +1,2 @@
+# shell scripts run in WSL / Linux: keep LF on a Windows checkout
+*.sh text eol=lf

@@ -77,6 +77,9 @@ const nextConfig: NextConfig = {
     "/museum/*": ["./data/site/phases.json", "./data/site/rooms.json"],
     "/museum/*/floor/*": ["./data/site/phases.json", "./data/site/rooms.json"],
     "/api/work/*/*": ["./data/site/rooms.json"],
+    // pg loads its Workers socket only on Cloudflare (a require the trace does not follow); the Worker's bundle
+    // (npm run cf:build) must find it
+    "/**/*": ["./node_modules/pg-cloudflare/**"],
   },
 
   // No images config: painting textures and portraits load straight from

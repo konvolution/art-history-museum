@@ -11,6 +11,7 @@
 import "server-only";
 import fs from "node:fs";
 import path from "node:path";
+import { onWorkers } from "./data-assets";
 import type { ArtistWithPaintings, GuideArtist, Painting, RoomFloor, WorkAbout } from "./types";
 import { getArtist } from "./data";
 import { artistOrigin } from "./countries";
@@ -60,7 +61,8 @@ let workByKey: Map<string, IndexWork> | null = null;
 function readIndex(): RoomIndex | null {
   if (index) return index;
   const file = path.join(process.cwd(), "data", "site", "rooms.json");
-  if (!fs.existsSync(file)) return null;
+  // not on Cloudflare Workers (no data/ on disk; scripts/cf-data.mjs copies the gallery snapshot only)
+  if (onWorkers || !fs.existsSync(file)) return null;
   index = JSON.parse(fs.readFileSync(file, "utf8")) as RoomIndex;
   termById = new Map(index.terms.map((t) => [t.id, t]));
   museumsById = new Map();

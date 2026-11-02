@@ -22,14 +22,20 @@
     "load-db": "tsx scripts/load-db.ts",
     "enrich": "tsx scripts/enrich.ts",
     "repair-data": "tsx scripts/repair-data.ts",
-    "fetch-music": "tsx scripts/fetch-music.ts"
+    "fetch-music": "tsx scripts/fetch-music.ts",
+    "cf:build": "opennextjs-cloudflare build && node scripts/cf-data.mjs",
+    "cf:build:wsl": "wsl bash scripts/cf-build-wsl.sh",
+    "cf:preview": "npm run cf:build && wrangler dev",
+    "cf:serve": "wrangler dev --port 8787",
+    "cf:deploy": "npm run cf:build && wrangler deploy"
   },
   "dependencies": {
+    "@opennextjs/cloudflare": "1.20.12",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "gsap": "^3.15.0",
     "hls.js": "^1.7.3",
-    "next": "16.2.9",
+    "next": "16.4.2",
     "pg": "^8.21.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -45,6 +51,7 @@
     "iwer": "2.6.0",
     "playwright": "^1.60.0",
     "tsx": "^4.22.4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "4.151.1"
   }
 }

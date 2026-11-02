@@ -18,6 +18,7 @@ import type {
 import { isTakenDown } from "./takedowns";
 import { cleanArtistName, decodeEntities } from "./text";
 import { artistOrigin } from "./countries";
+import { onWorkers, readAssetJson } from "./data-assets";
 
 // `next build` sets NEXT_PHASE for its prerender workers (read at runtime, not inlined).
 const BUILDING = process.env.NEXT_PHASE === "phase-production-build";
@@ -53,7 +54,10 @@ function getPool(): Pool | null {
  */
 async function read<T>(fromDb: (db: Pool) => Promise<T>, fromCache: () => T): Promise<T> {
   const db = getPool();
-  if (!db) return fromCache();
+  if (!db) {
+    await loadCache();
+    return fromCache();
+  }
   try {
     return await fromDb(db);
   } catch (err) {
@@ -76,8 +80,12 @@ interface CacheShape {
 
 // Read once per server process: an edit to museum.json needs a restart.
 let cache: CacheShape | null = null;
+/** On Cloudflare Workers the snapshot is a static asset (data-assets.ts), fetched once per isolate. */
+async function loadCache(): Promise<void> {
+  if (!cache && onWorkers) cache = await readAssetJson<CacheShape>("museum.json");
+}
 function readCache(): CacheShape | null {
-  if (cache) return cache;
+  if (cache || onWorkers) return cache;
   // data/site/museum.json: the ingest plus the works only WikiArt has (archive/site.py); else the ingest's own
   const site = path.join(process.cwd(), "data", "site", "museum.json");
   const file = fs.existsSync(site) ? site : path.join(process.cwd(), "data", "wikipedia", "museum.json");
@@ -92,6 +100,7 @@ let originFacts: OriginFacts | null = null;
 function readOriginFacts(): OriginFacts {
   if (originFacts) return originFacts;
   originFacts = {};
+  if (onWorkers) return originFacts; // rooms.json is not copied to the Worker (scripts/cf-data.mjs)
   const file = path.join(process.cwd(), "data", "site", "rooms.json");
   if (!fs.existsSync(file)) return originFacts;
   const all = (JSON.parse(fs.readFileSync(file, "utf8")) as { artists?: OriginFacts }).artists ?? {};
