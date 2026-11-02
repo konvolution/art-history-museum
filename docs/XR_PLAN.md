@@ -245,7 +245,93 @@ standing in a gallery" moment, which is roughly a week in.
 
 ---
 
-## 10. Risks and open questions
+## 10. Found on the Quest (2026-11-01): the elevator, and moving between rooms
+
+The first device test (the live Worker, Quest Browser) found two problems. Both are fixed in phase 4b below.
+
+### 10.1 The elevator does nothing in VR
+
+A gallery longer than six rooms continues on another floor (`/museum/<artist>/floor/<n>`), reached by the
+elevator beside the entrance doors (`Elevator.tsx`). In VR it fails twice over:
+
+1. **It can't be pressed.** The call buttons react only to a pointer-locked mouse click aimed with the crosshair
+   (`Elevator.tsx`, the `window` click listener), the E / Q keys, the HUD's buttons and the top bar's floor
+   `<select>` (`MuseumApp.tsx`). None of these exist in a headset. The controller ray (`XRPlayer`) only looks
+   for paintings.
+2. **Riding it ends VR.** `ride()` calls `router.push(floor.href)`, which unmounts the gallery and its canvas.
+   `XRBridge` then ends the session, so the visitor is back in 2D on the next floor. The end doors to the
+   next artist (`ExitDoors` → `leave()`) do the same.
+
+Fix:
+
+- **Pressable in VR:** the controller ray also hits the elevator's plate. The trigger presses up or down by the
+  same upper/lower-half rule as the mouse, and `onPress` runs the existing `ride()`, so the car arrives, the
+  chime plays and the doors open as on desktop. The same goes for the exit doors' cards, so a visitor can choose
+  previous or next artist without walking into a door by accident.
+- **Staying in VR across floors and galleries**, in order of preference:
+  1. *WebXR navigation:* the Quest Browser can hand an immersive session to the next same-origin page
+     (`navigator.xr` fires `sessiongranted` there, and the page calls `requestSession` without a click). On
+     load, a gallery that was granted a session enters VR at once (where the elevator or door puts the visitor),
+     so `router.push` stays as it is. This is small, but it has to be confirmed on the device, and it needs a full
+     page load for the grant (a soft `router.push` keeps the same document, so check which one the browser
+     needs).
+  2. *Fallback: change floor without leaving the page.* In VR, `ride()` fetches the other floor's works (a new
+     `/api/gallery/<artist>/<floor>` returning what the floor page renders), swaps the gallery's `artist` and
+     layout inside the same `MuseumApp` (the canvas, and with it the session, stay) and updates the address
+     with `history.replaceState`. The same mechanism serves the exit doors (another artist's first floor).
+     This is more work: `MuseumApp` keeps a lot of per-gallery state that must reset cleanly.
+- The floor picker as a wrist-menu list (§5), using the same ride.
+
+Check: `xr-check.mjs` on a gallery with floors (Monet). Aim at the plate, trigger, and the session is still
+presenting on floor 2 with the visitor stepping out of the lift.
+
+### 10.2 Moving between rooms is awkward
+
+Rooms are joined by doorways in cross walls (`layout.doorways`; each doorway is offset to one side, zigzagging
+down the suite). What makes crossing them worse in VR than on desktop:
+
+1. **The teleport arc is blocked by the wall above a doorway.** The arc stops at the first wall it meets
+   (`firstWallHit`), and a cross wall is solid above the doorway's head (`y > d.height`, about 3 m). A launch
+   at 7 m/s rises well above that, so any arc aimed through a doorway at a normal angle hits the lintel and
+   turns red. Only a low, flat aim works. Fix: test the arc against walls only below a doorway's head height
+   (or cap the arc's apex just under it). Also allow a landing in the next room when the eye-level line from
+   the head to it runs through the opening (`firstWallHit` at eye height). The desktop's double tap already
+   walks through doorways the same way (`planRoute`).
+2. **There's no way to jump rooms.** On desktop the room navigator (`[` / `]`, PageUp/PageDown, its list) jumps
+   to any room. In VR it's DOM, so it can't be reached. Fix: left-stick click (or X / A) for the next / previous
+   room through `teleportApi.go`, and the room list in the wrist menu. `go()` already moves the VR rig
+   (`placeViewer`).
+3. **Teleports and jumps are instant cuts.** Snapping to a new place with no transition is disorienting, more so
+   across a wall. Fix: a short fade (~150 ms out, ~150 ms in) on teleports, room jumps and the trigger's
+   step-up. Use a head-locked black quad, or the existing fade layer drawn into the scene.
+4. **Rooms appear only as one arrives.** A suite mounts the exhibits of the rooms around the visitor
+   (`lodAt`, a few per frame) and loads their textures as they near. On a Quest the next room's works can still
+   be filling in as one walks through the doorway, and texture uploads cause hitches. Fix: in VR, mount the next
+   room in the direction of travel one room earlier, spread the uploads, and hold them while the head turns
+   quickly (phase 5).
+5. **Walking through a doorway catches on the jambs.** `confine` keeps the body 0.55 m from walls and slides it
+   round a jamb. Steering by the head, with the doorway offset to one side, makes a straight walk often clip the
+   jamb and slide sideways. Options: steer by the left controller's direction (a setting, as most VR apps
+   offer), and widen the slide's catch zone so the body lines up with the opening a little before reaching it.
+6. **Comfort while walking:** an optional vignette during stick movement (§4, not built yet).
+
+Which of these the device test hit most is an open question for the owner. Items 1–3 are likely, small, and
+first.
+
+Check: `xr-check.mjs` adds a teleport aimed through a doorway at a normal upward angle (it must land in the next
+room), the next-room jump, and a walk at a doorway's jamb that ends in the next room.
+
+### Phase 4b (insert before phase 5)
+
+| Step | Size |
+|---|---|
+| Teleport through doorways (10.2.1) | 0.5 d |
+| Room jump on a button (10.2.2), fades (10.2.3) | 1 d |
+| Elevator and exit doors pressable with the controller ray (10.1) | 0.5–1 d |
+| Stay in VR across floors: try WebXR navigation on the Quest; else the in-page floor swap (10.1) | 0.5 d / 2–3 d |
+| Next-room preloading in VR (10.2.4), controller-relative steering (10.2.5) | 1–2 d |
+
+## 11. Risks and open questions
 
 - **Which headset?** Quest 2 vs 3/3S changes the budget a lot (Adreno 650 vs 740). Phase 5's targets assume
   Quest 3 for "good" and Quest 2 for "acceptable".
