@@ -221,13 +221,28 @@ Browser; a desktop with a headset linked). The code is in `src/components/museum
   every frame (the R3F camera has no parent), so everything that reads `camera.position` keeps working. The
   visitor is moved by offsetting the session's reference space, not by moving the camera:
   gallery = rig · headset space. `placeViewer`, `shiftViewer` and `turnViewer` change the rig.
-- `XRPlayer.tsx`: the left stick walks (kept in the hall by `confine`), the right stick snap-turns 30° or, pushed
-  forward, aims a teleport arc (stopped by cross walls, landing checked by `confine`). The trigger, or a pinch with
-  tracked hands, at a painting stands the visitor in front of it (`inspectPose`), and B or Y goes back. There are
-  no camera flights, jumps or crouching.
+- `XRPlayer.tsx`: the controls.
+  - Left stick: walks the way the head faces, or the left controller points (Settings, "Walking in VR"), kept in
+    the hall by `confine`.
+  - Right stick: left/right snap-turns 30°; forward aims a teleport arc; back steps back 0.5 m. The arc keeps
+    under the doorways' heads so it clears their lintels, is stopped by cross walls, and its landing is checked
+    by `confine`.
+  - A / X: the next / previous room.
+  - Trigger (or a pinch with tracked hands): uses a badge, or at a painting stands the visitor in front of it
+    (`inspectPose`). B or Y goes back.
+  - Every jump blinks: a short fade through black (`session.ts` `blink`).
+  - There are no camera flights, jumps or crouching.
+- Badges (`xr/Badge.tsx`): round icons on the things that take the visitor somewhere. The end doors' exit badges
+  show on a computer too (crosshair and click). In VR, the elevator's call badge opens its doors to walk in
+  (`Elevator.tsx` `liftCar`), and a badge per floor on the car's back wall rides there.
+- Staying in VR between pages: riding the elevator or going through an end door fades to black and carries the
+  session (`carryXR`). The next page's canvas takes it up (`adoptXR`), with the visitor standing in its car or at
+  its entrance. Its old renderer's XR loop is stopped by an `end` event dispatched to that page's listeners only;
+  the session itself goes on.
+- In VR, wall-resolution textures load further ahead (`SuiteRuntime.setLookahead`), so the next room is sharp
+  before one reaches its doorway.
 - `XRBridge`: turns the floor's reflection off while in VR (it renders one eye's view, and costs a second pass) and
-  ends the session when the gallery unmounts. Walking through the end doors or taking the elevator to another
-  floor loads another page, which ends VR.
+  hands a carried session over (or ends it) when the gallery unmounts.
 - Render layers (`layers.ts`): small props, labels and the works' shadows are on layer 3. three.js uses layers 1
   and 2 for the left and right eyes in a session.
 - On a standalone headset, Auto graphics picks its own tier (`quality.ts`): MSAA on, two area lights, no close-up
@@ -242,8 +257,10 @@ and open `https://<pc-ip>:3000`. On a desktop, Meta's Immersive Web Emulator ext
 - `node scripts/verify-e2e.mjs [baseUrl]`: timeline behaviour checks.
 - `node scripts/check-floors.mjs [baseUrl]`: desktop and touch floor navigation, elevator rides, history,
   direct links and 404s; set `VERIFY_REAL_IMAGES=1` to use the real artwork hosts instead of fixtures.
-- `node scripts/xr-check.mjs <slug> [baseUrl]`: VR in an emulated Quest 3 (IWER): entering, both eyes'
-  layers, walking, snap turn, walls, teleport, the trigger at a painting, leaving.
+- `node scripts/xr-check.mjs <slug> [baseUrl] [doors]`: VR in an emulated Quest 3 (IWER): entering, both eyes'
+  layers, walking, snap turn, walls, teleport, the trigger at a painting, A / X rooms, an arc through a doorway,
+  stepping back, riding the elevator to another floor (or with `doors`, `<artist>/floor/<n>`: an end door's
+  badge) while staying in VR, leaving.
 - `node scripts/suite-check.mjs`: walks a gallery suite (collision, doorways,
   navigator, inspect).
 - `node scripts/perf-probe.mjs <slug> [baseUrl] [label]`: rendering cost.

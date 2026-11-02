@@ -59,6 +59,10 @@ const DIM_GAIN = 0.07;
 /** Wall resolution within this walk of the visitor (m); back to thumbnail beyond TIER_DOWN. */
 const TIER_UP = 10;
 const TIER_DOWN = 14;
+/** In a VR session: further, so the next room is sharp before one reaches its doorway (a late swap shows more
+ *  in a headset, and its upload is a dropped frame in the doorway). */
+const TIER_UP_XR = 18;
+const TIER_DOWN_XR = 24;
 /** Close-up resolution for works this near the visitor (m, plan view, same
  *  room), dropped again beyond NEAR_DOWN; at most NEAR_MAX works at a time. */
 const NEAR_UP = 3.5;
@@ -158,6 +162,8 @@ export class SuiteRuntime {
   private focus: string | null = null;
   private open = false;
   private room = 0;
+  private tierUp = TIER_UP;
+  private tierDown = TIER_DOWN;
   private roomSubs = new Set<(room: number) => void>();
   private windowSubs = new Set<() => void>();
   private settleFrames = 0;
@@ -332,6 +338,13 @@ export class SuiteRuntime {
     this.lastPlan = null;
   }
 
+  /** In a VR session: wall resolution further ahead (TIER_UP_XR). */
+  setLookahead(far: boolean): void {
+    this.tierUp = far ? TIER_UP_XR : TIER_UP;
+    this.tierDown = far ? TIER_DOWN_XR : TIER_DOWN;
+    this.lastPlan = null;
+  }
+
   /** The doors are opening: everything beyond the entrance room may load. */
   setOpen(open: boolean): void {
     if (this.open === open) return;
@@ -469,10 +482,10 @@ export class SuiteRuntime {
         tier = "wall";
       } else if (!this.open) {
         tier = e.placement.room === 0 ? "wall" : e.isAnchor ? "thumb" : e.tier;
-      } else if (e.placement.room === this.room || dist[e.index] < TIER_UP) {
+      } else if (e.placement.room === this.room || dist[e.index] < this.tierUp) {
         tier = "wall";
       } else {
-        tier = (e.tier === "wall" || e.tier === "near") && dist[e.index] < TIER_DOWN ? "wall" : "thumb";
+        tier = (e.tier === "wall" || e.tier === "near") && dist[e.index] < this.tierDown ? "wall" : "thumb";
       }
       if (tier !== e.tier) {
         e.tier = tier;

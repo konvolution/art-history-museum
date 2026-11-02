@@ -12,6 +12,7 @@ import type { GalleryLink } from "@/lib/types";
 import { WALL_MARGIN, type ExitDoors as ExitSpot } from "./layout";
 import type { SuiteRuntime } from "./suite-runtime";
 import { fontFamilies, placardFontsReady } from "./exhibit-placard";
+import { Badge } from "./xr/Badge";
 
 export type ExitSide = "prev" | "next";
 
@@ -210,8 +211,13 @@ export function ExitDoors({
     [wash]
   );
 
-  // near the end wall; walking up to a door goes through it, once
+  // near the end wall; walking up to a door goes through it, once (or its badge: point and click)
   const gone = useRef(false);
+  const through = (side: ExitSide) => {
+    if (gone.current) return;
+    gone.current = true;
+    onThrough(side);
+  };
   const near = useRef(false);
   useFrame(() => {
     const p = camera.position;
@@ -223,8 +229,7 @@ export function ExitDoors({
     if (!enabled || gone.current || p.z > zw + THROUGH) return;
     for (const [side, s] of SIDES) {
       if (Math.abs(p.x - s * spot.x) < spot.halfWidth + 0.1) {
-        gone.current = true;
-        onThrough(side);
+        through(side);
         return;
       }
     }
@@ -241,6 +246,9 @@ export function ExitDoors({
           <group key={k.side}>
             <mesh geometry={plane} material={k.material} position={[x, y, zw + 0.16]} />
             <mesh geometry={wash.geometry} material={wash.material} position={[x, spot.height + 0.2 - WASH_H * 0.14, zw + 0.13]} renderOrder={2} />
+            {(k.side === "prev" ? prev : next) && (
+              <Badge position={[x, 1.45, zw + 0.3]} icon="exit" size={0.28} enabled={enabled} range={9} onPress={() => through(k.side)} />
+            )}
           </group>
         );
       })}

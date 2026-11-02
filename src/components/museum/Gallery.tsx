@@ -22,14 +22,15 @@ import { planExhibitLights, roomDims } from "./exhibit-lights";
 import { lodAt, SuiteRuntime, type Lod } from "./suite-runtime";
 import { textureStats } from "./exhibit-texture";
 import { FxSlot } from "./fx/Slot";
-import { Elevator, type ElevatorApi, type LiftDirection } from "./Elevator";
+import { Elevator, liftCar, type ElevatorApi, type LiftDirection } from "./Elevator";
 import { ExitDoors, type ExitSide } from "./ExitDoors";
 import { FilmNook } from "@/components/cinema/FilmNook";
 import { rememberSteppedDown, setReflection, type Quality } from "./quality";
 import { useSetting } from "./settings";
 import type { CinemaRuntime } from "@/components/cinema/cinema-runtime";
 import { PROP_LAYER } from "./layers";
-import { isInXR, placeViewer, useInXR } from "./xr/session";
+import { isInXR, placeViewer, useInXR, viewer } from "./xr/session";
+import { badgeList } from "./xr/Badge";
 import { XRBridge, XRPlayer } from "./xr/XRPlayer";
 
 export type { LockApi };
@@ -103,6 +104,8 @@ export interface GalleryProps {
     apiRef: RefObject<ElevatorApi | null>;
     onNear: (near: boolean) => void;
     onPress: (dir: LiftDirection) => void;
+    /** Ride to a floor (1-based) from inside the car (VR). */
+    onRide: (floor: number) => void;
   };
   /** An artist's gallery's films' corner (layout.nook): the films about the artist. */
   films?: {
@@ -152,6 +155,7 @@ export const Gallery = memo(function Gallery(props: GalleryProps) {
     [layout, lights, theme.light.spot]
   );
   useEffect(() => () => runtime.dispose(), [runtime]);
+  useEffect(() => runtime.setLookahead(inXR), [runtime, inXR]);
 
   // ---- which exhibits exist: a long suite hangs only the rooms around the
   // visitor (full detail next door, frame + canvas two rooms away). When the
@@ -300,9 +304,13 @@ export const Gallery = memo(function Gallery(props: GalleryProps) {
           />
         ) : null;
       })}
-      <XRBridge />
+      <XRBridge layout={layout} />
       {inXR ? (
-        <XRPlayer layout={layout} registry={meshRegistry.current} />
+        <XRPlayer
+          layout={layout}
+          registry={meshRegistry.current}
+          jump={(d) => props.teleportApi?.current?.go(runtime.currentRoom() + d)}
+        />
       ) : props.touch ? (
         <TouchPlayer
           layout={layout}
@@ -341,6 +349,9 @@ export const Gallery = memo(function Gallery(props: GalleryProps) {
           apiRef={props.lift.apiRef}
           onNear={props.lift.onNear}
           onPress={props.lift.onPress}
+          inXR={inXR}
+          arrivedByLift={props.lift.arrivedByLift}
+          onRide={props.lift.onRide}
         />
       )}
       {layout.exits && props.exits && (
@@ -417,7 +428,13 @@ function SuiteDirector({
   useEffect(() => {
     const w = window as unknown as { __MUSEUM_DEBUG__?: boolean; __museum?: unknown };
     if (!w.__MUSEUM_DEBUG__) return;
-    w.__museum = { camera, scene, gl, layout: runtime.layout, runtime, invalidate, textureStats };
+    w.__museum = {
+      camera, scene, gl, layout: runtime.layout, runtime, invalidate, textureStats,
+      // VR: stand the visitor somewhere, read where they stand, list the badges
+      xr: { place: placeViewer, viewer: () => viewer({ x: 0, y: 0, z: 0, yaw: 0 }) },
+      badges: badgeList,
+      liftCar,
+    };
     return () => {
       w.__museum = undefined;
     };

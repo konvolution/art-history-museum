@@ -5,7 +5,8 @@
 // the lock that keeps it; or the browser's) and speed. Saved in this browser (settings.ts).
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { GUIDE_SPEEDS, getSettings, setSettings, useSettings, type GuideVoice, type Pace } from "./settings";
+import { GUIDE_SPEEDS, getSettings, setSettings, useSettings, type GuideVoice, type Pace, type VrSteer } from "./settings";
+import { useXRSupported } from "./xr/session";
 import { currentQuality, forgetSteppedDown, tierFor, weakReason, type GraphicsChoice } from "./quality";
 import {
   NATURAL_VOICES,
@@ -51,6 +52,7 @@ function Choice<T extends string | boolean>({
 /** `onClose(relock)`: relock when closed by a click (a gesture that may take the cursor back). */
 export function SettingsPanel({ onClose, touch }: { onClose: (relock: boolean) => void; touch: boolean }) {
   const s = useSettings();
+  const vr = !!useXRSupported();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>('button[aria-pressed="true"]')?.focus({ preventScroll: true });
@@ -157,6 +159,20 @@ export function SettingsPanel({ onClose, touch }: { onClose: (relock: boolean) =
                 : "Hold W for a few seconds to run."}
           </p>
         </section>
+        {vr && (
+          <section>
+            <h3>Walking in VR</h3>
+            <Choice<VrSteer>
+              value={s.vrSteer}
+              options={[
+                { key: "head", label: "Where I look" },
+                { key: "hand", label: "Where I point" },
+              ]}
+              onPick={(vrSteer) => setSettings({ vrSteer })}
+            />
+            <p>The left stick walks the way your head faces, or the way your left controller points (look around while walking straight).</p>
+          </section>
+        )}
         <section>
           <h3>Canvas surface</h3>
           <Choice

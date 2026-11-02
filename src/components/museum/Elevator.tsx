@@ -5,6 +5,10 @@
 // over the frame, call buttons (up where there is a floor above, down where there is one below) and a floor
 // directory. Pressing a button (aim and click, or the HUD's buttons and E / Q) lights it, the car arrives with a
 // chime and the doors open; MuseumApp then fades and takes the visitor to the other floor.
+//
+// In a VR session the visitor rides it: the badge on the call plate (xr/Badge.tsx) brings the car and leaves its
+// doors open, the visitor walks in (XRPlayer lets them, `liftCar`), and a badge per floor on the car's back wall
+// rides there (`onRide`). They arrive standing in the other floor's car, its doors open.
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -14,13 +18,23 @@ import type { ElevatorSpot } from "./layout";
 import type { GalleryTheme } from "./theme";
 import type { SuiteRuntime } from "./suite-runtime";
 import { musicMuted } from "./MuseumAudio";
+import { Badge } from "./xr/Badge";
 
 export type LiftDirection = "up" | "down";
 
 export interface ElevatorApi {
   /** Light the button, bring the car, open the doors; resolves once they are open. */
   call(dir: LiftDirection): Promise<void>;
+  /** Close the doors; resolves once they are shut. */
+  close(): Promise<void>;
 }
+
+/** The car and its doorway in a VR session (XRPlayer: one walks in while the doors are open, and stays in while
+ *  they are shut); `box` null outside VR. */
+export const liftCar = {
+  box: null as null | { x: number; halfWidth: number; zw: number; carHalf: number; depth: number },
+  open: false,
+};
 
 /** How close (m) and how squarely the visitor must stand to use the elevator. */
 const NEAR = 3.4;
@@ -41,6 +55,9 @@ export function Elevator({
   apiRef,
   onNear,
   onPress,
+  inXR = false,
+  arrivedByLift = false,
+  onRide,
 }: {
   spot: ElevatorSpot;
   hallLength: number;
@@ -54,6 +71,12 @@ export function Elevator({
   apiRef: RefObject<ElevatorApi | null>;
   onNear: (near: boolean) => void;
   onPress: (dir: LiftDirection) => void;
+  /** A VR session: the call badge opens the doors to walk in, the car's badges ride. */
+  inXR?: boolean;
+  /** The visitor came by the elevator: in VR they stand in the car, its doors open. */
+  arrivedByLift?: boolean;
+  /** Ride to `floor` (1-based) from inside the car. */
+  onRide?: (floor: number) => void;
 }) {
   const camera = useThree((s) => s.camera);
   const invalidate = useThree((s) => s.invalidate);
@@ -263,6 +286,11 @@ export function Elevator({
           );
         });
       },
+      close() {
+        door.current.goal = 0;
+        invalidate();
+        return new Promise((resolve) => timers.push(setTimeout(resolve, 1000 / DOOR_SPEED)));
+      },
     };
     apiRef.current = api;
     return () => {
@@ -297,6 +325,33 @@ export function Elevator({
   const front = zw - 0.012; // the frame's face, in front of the wall
   const carDepth = 1.5;
   const carW = 2 * hw + 0.3;
+
+  // VR: arriving by the elevator, one stands in the car with its doors open
+  useEffect(() => {
+    if (!inXR || !arrivedByLift) return;
+    door.current.goal = 1;
+    invalidate();
+  }, [inXR, arrivedByLift, invalidate]);
+  // VR: the car is open to walk into while its doors are (nearly) open
+  useFrame(() => {
+    if (inXR && !liftCar.box) liftCar.box = { x: X, halfWidth: hw, zw, carHalf: carW / 2, depth: carDepth };
+    else if (!inXR && liftCar.box) liftCar.box = null;
+    liftCar.open = inXR && visible && door.current.open > 0.9;
+  });
+  useEffect(
+    () => () => {
+      liftCar.box = null;
+      liftCar.open = false;
+    },
+    []
+  );
+  const callBadge = () => {
+    if (door.current.goal === 1) return;
+    void apiRef.current?.call(hasUp ? "up" : "down");
+  };
+  // the car's floor badges: the floors around this one, top floor at the top-left (at most eight)
+  const first = Math.max(0, Math.min(floor - 4, floors.length - 8));
+  const choices = floors.slice(first, first + 8).map((f, i) => ({ f, n: first + i + 1 }));
   const btnY = (dir: LiftDirection) => (hasUp && hasDown ? (dir === "up" ? 1.16 : 1.04) : 1.1);
 
   return (
@@ -359,6 +414,29 @@ export function Elevator({
       )}
       {hasUp && <Arrow x={spot.panelX} y={btnY("up")} z={zw - 0.024} up />}
       {hasDown && <Arrow x={spot.panelX} y={btnY("down")} z={zw - 0.024} up={false} />}
+      {/* VR: the call badge over the plate, and in the car a badge per floor on its back wall */}
+      {inXR && (hasUp || hasDown) && (
+        <Badge position={[spot.panelX, 1.48, zw - 0.08]} icon="lift" size={0.2} enabled={enabled} onPress={callBadge} />
+      )}
+      {inXR &&
+        choices.map(({ f, n }, i) => {
+          const cols = Math.min(4, choices.length);
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const x = X + (col - (cols - 1) / 2) * 0.24;
+          return (
+            <Badge
+              key={f.href}
+              position={[x, 1.55 - row * 0.26, zw + carDepth - 0.04]}
+              icon="floor"
+              text={String(f.number ?? n)}
+              size={0.18}
+              range={2.6}
+              enabled={enabled && n !== floor}
+              onPress={() => onRide?.(n)}
+            />
+          );
+        })}
       {/* the floor directory */}
       {directory && spot.directoryX !== null && (
         <group position={[spot.directoryX, 1.55, zw - 0.006]} rotation={[0, Math.PI, 0]}>

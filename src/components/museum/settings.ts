@@ -1,4 +1,4 @@
-// The visitor's gallery settings, kept in this browser: walking pace, the canvas surface (weave and varnish),
+// The visitor's gallery settings, kept in this browser: walking pace (and how VR steers), the canvas surface (weave and varnish),
 // whether the on-screen controls show, the graphics (quality.ts), and the audio guide's voice and speed. Controls
 // reads the pace each frame (getSettings); every painting renders with the surface, the HUD with `hud` (useSetting); the guide reads its
 // voice when it speaks (voice.ts). The kind of voice is kept under a key of its own (VOICE_KEY).
@@ -11,6 +11,8 @@ export type Pace = "walk" | "run";
 /** natural: the natural voice (voice.ts, Pocket), downloaded and run on this device, the default wherever it can
  *  run; browser: the browser's own voice (the one chosen from its list, else the most natural it has). */
 export type GuideVoice = "natural" | "browser";
+/** In VR, the left stick walks the way the head faces, or the way the left controller points. */
+export type VrSteer = "head" | "hand";
 export const GUIDE_SPEEDS = [0.85, 1, 1.15, 1.3, 1.5] as const;
 
 export interface MuseumSettings {
@@ -30,6 +32,7 @@ export interface MuseumSettings {
   browserVoice: string;
   /** The guide's reading speed (1: as recorded). */
   guideSpeed: number;
+  vrSteer: VrSteer;
 }
 
 /** Speed, m/s: a run by default, twice the walk; walking, holding W runs. */
@@ -45,7 +48,7 @@ const KEY = "timeline-museum:settings";
 const VOICE_KEY = "timeline-museum:guide-voice";
 const DEFAULTS: MuseumSettings = {
   pace: "run", surface: true, hud: true, graphics: "auto", guideVoice: "natural", naturalLock: false,
-  aiVoice: NATURAL_VOICES[0].id, browserVoice: "", guideSpeed: 1,
+  aiVoice: NATURAL_VOICES[0].id, browserVoice: "", guideSpeed: 1, vrSteer: "head",
 };
 
 /** As saved: the speed is `walk`, so a `pace` saved before running was the default (by any setting saved, H
@@ -60,6 +63,7 @@ interface Saved {
   aiVoice?: string;
   browserVoice?: string;
   guideSpeed?: number;
+  vrSteer?: VrSteer;
 }
 
 let current: MuseumSettings | null = null;
@@ -80,6 +84,7 @@ function load(): MuseumSettings {
       browserVoice: typeof saved.browserVoice === "string" ? saved.browserVoice : DEFAULTS.browserVoice,
       guideSpeed:
         typeof saved.guideSpeed === "number" && saved.guideSpeed >= 0.5 && saved.guideSpeed <= 2 ? saved.guideSpeed : DEFAULTS.guideSpeed,
+      vrSteer: saved.vrSteer === "hand" ? "hand" : DEFAULTS.vrSteer,
     };
   } catch {
     return DEFAULTS;
@@ -94,8 +99,8 @@ export function getSettings(): MuseumSettings {
 export function setSettings(patch: Partial<MuseumSettings>) {
   current = { ...getSettings(), ...patch };
   try {
-    const { pace: walk, surface, hud, graphics, guideVoice, naturalLock, aiVoice, browserVoice, guideSpeed } = current;
-    const saved: Saved = { walk, surface, hud, graphics, naturalLock, aiVoice, browserVoice, guideSpeed };
+    const { pace: walk, surface, hud, graphics, guideVoice, naturalLock, aiVoice, browserVoice, guideSpeed, vrSteer } = current;
+    const saved: Saved = { walk, surface, hud, graphics, naturalLock, aiVoice, browserVoice, guideSpeed, vrSteer };
     localStorage.setItem(KEY, JSON.stringify(saved));
     localStorage.setItem(VOICE_KEY, guideVoice);
   } catch {

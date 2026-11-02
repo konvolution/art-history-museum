@@ -356,6 +356,19 @@ stick returns to centre before the next step. It is useful right after the trigg
 when a turn leaves the visitor facing a wall. The right stick's directions then read: left/right turn, forward
 teleport, back step back.
 
+### Phase 4b status (2026-11-02)
+
+All of 10.1–10.4 is built and passes `xr-check.mjs` in an emulated Quest 3 (23/23 on a gallery with floors,
+19/19 on its top floor's end doors). The desktop checks are unchanged. Two decisions:
+
+- **Staying in VR across pages:** neither WebXR navigation nor an in-page floor swap. The next page's renderer
+  takes over the live session (`session.ts` `carryXR` / `adoptXR`). three never ends a session on `dispose()`,
+  and the old renderer's XR loop is stopped with an `end` event dispatched to that page's listeners only. This
+  works in any browser and in the emulator, and it keeps `router.push` as it was. It still needs confirming on
+  the Quest.
+- **The arc:** under the lowest doorway's head (the emulator's Caravaggio doorways are 4 m, so the lintel was
+  rarely the blocker there; it is a cap, harmless where it is not needed).
+
 ### Phase 4b (insert before phase 5)
 
 | Step | Size |

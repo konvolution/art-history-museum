@@ -134,11 +134,67 @@ export function readHead(frame: XRFrame | undefined) {
   }
 }
 
+// ------------------------------------------------------------------ the fade
+
+/** How dark the view is (0 clear .. 1 black), and where it is heading; XRPlayer draws it and steps it. */
+export const fade = { level: 0, goal: 0, waiting: [] as (() => void)[] };
+/** Fade to black; resolves once the view is black. */
+export function fadeOut(): Promise<void> {
+  if (!presenting) return Promise.resolve();
+  fade.goal = 1;
+  if (fade.level >= 1) return Promise.resolve();
+  return new Promise((resolve) => fade.waiting.push(resolve));
+}
+export function fadeIn() {
+  fade.goal = 0;
+}
+/** A move the visitor does not feel: to black, the move, back. */
+export async function blink(move: () => void) {
+  await fadeOut();
+  move();
+  fadeIn();
+}
+
 // ------------------------------------------------------------------ entering and leaving
 
 /** Hand the canvas's renderer over (XRBridge, inside the Canvas). */
 export function setXRRenderer(gl: THREE.WebGLRenderer | null) {
   renderer = gl;
+}
+
+let live: XRSession | null = null;
+/** The session on its way to the next page (another floor, another gallery), and how the visitor arrives there. */
+let carried: { session: XRSession; arrival: Arrival; timer: ReturnType<typeof setTimeout> } | null = null;
+/** "lift": standing in the elevator car; "door": at the entrance, as through the doors. */
+export type Arrival = "lift" | "door";
+/** The page taking a carried session must do so within this long, or it ends. */
+const CARRY_MS = 20000;
+/** While a carried session leaves its old renderer: its "end" (dispatched here, not real) is not the visit's. */
+let handingOver = false;
+
+function begin(gl: THREE.WebGLRenderer, session: XRSession) {
+  live = session;
+  session.addEventListener("end", () => {
+    if (handingOver || live !== session) return;
+    live = null;
+    presenting = false;
+    base = null;
+    head.known = false;
+    fade.level = fade.goal = 0;
+    emit();
+  });
+}
+
+async function attach(gl: THREE.WebGLRenderer, session: XRSession) {
+  gl.xr.setReferenceSpaceType("local-floor");
+  head.known = false;
+  await gl.xr.setSession(session);
+  // the space three made for the session: everything is offset from it
+  base = gl.xr.getReferenceSpace();
+  gl.xr.setFoveation(1);
+  applyRig();
+  presenting = true;
+  emit();
 }
 
 /** Start a VR session with the visitor standing where the 2D view is, facing the same way. From a click. */
@@ -149,27 +205,67 @@ export async function enterXR(from: { x: number; z: number; yaw: number }): Prom
     optionalFeatures: ["local-floor", "bounded-floor", "hand-tracking"],
   });
   const gl = renderer;
-  gl.xr.setReferenceSpaceType("local-floor");
-  head.known = false;
   pending = from;
   rig.x = from.x;
   rig.z = from.z;
   rig.yaw = from.yaw;
-  session.addEventListener("end", () => {
-    presenting = false;
-    base = null;
-    head.known = false;
-    emit();
-  });
-  await gl.xr.setSession(session);
-  // the space three made for the session: everything is offset from it
-  base = gl.xr.getReferenceSpace();
-  gl.xr.setFoveation(1);
-  applyRig();
-  presenting = true;
-  emit();
+  begin(gl, session);
+  await attach(gl, session);
 }
 
 export function exitXR() {
-  void renderer?.xr.getSession()?.end();
+  void live?.end();
+}
+
+/** Keep the session for the next page (call with the view black, just before navigating): the gallery's
+ *  unmount hands it over instead of ending it. */
+export function carryXR(arrival: Arrival) {
+  if (!live) return;
+  const session = live;
+  carried = { session, arrival, timer: setTimeout(() => dropCarried(), CARRY_MS) };
+}
+function dropCarried() {
+  if (!carried) return;
+  const s = carried.session;
+  clearTimeout(carried.timer);
+  carried = null;
+  void s.end();
+}
+
+/** The gallery is going (XRBridge's unmount): a carried session leaves this renderer, any other ends. */
+export function releaseXR(gl: THREE.WebGLRenderer) {
+  if (!carried || live !== carried.session) {
+    exitXR();
+    return;
+  }
+  // stop this renderer's XR loop: three stops it on the session's "end", which only this page's listeners hear
+  gl.xr.setAnimationLoop(null);
+  handingOver = true;
+  try {
+    carried.session.dispatchEvent(new Event("end"));
+  } finally {
+    handingOver = false;
+  }
+  presenting = false;
+  base = null;
+  emit();
+}
+
+/** A new gallery's renderer takes a carried session (XRBridge's mount); resolves with how the visitor arrives, or
+ *  null when nothing was carried. The view stays black until the caller places the visitor and fades in. */
+export async function adoptXR(gl: THREE.WebGLRenderer): Promise<Arrival | null> {
+  if (!carried) return null;
+  const { session, arrival, timer } = carried;
+  clearTimeout(timer);
+  carried = null;
+  fade.level = fade.goal = 1;
+  try {
+    await (gl.getContext() as WebGL2RenderingContext & { makeXRCompatible?: () => Promise<void> }).makeXRCompatible?.();
+    await attach(gl, session);
+    return arrival;
+  } catch (err) {
+    console.warn("Could not keep VR on this page", err);
+    void session.end();
+    return null;
+  }
 }

@@ -52,8 +52,10 @@ can run: a one-time download of about 120 MB when the guide first reads; or
 the browser's most natural one: a switch beside the guide's buttons) and
 reading speed, and hiding the controls (**H**).
 In a VR headset (the Quest Browser), choose **Enter VR** on a gallery's first screen. Walk with the left stick.
-The right stick turns, or pushed forward, aims a teleport. Point the trigger at a painting to step up to it, and
-press B to step back.
+The right stick turns, aims a teleport when pushed forward, and steps back when pulled. **A** and **X** go to the
+next and previous room. Point the trigger at a painting to step up to it (B steps back), at a door's exit badge to
+go to that artist, or at the elevator's badge to call it, then walk in and choose a floor. You stay in VR all the
+way.
 On a phone, use the left stick to walk and the right stick to look around.
 You can also drag to look or double-tap the floor to go there. Click or tap a painting to
 inspect it. **Explore → How to explore** brings back the short guide on the

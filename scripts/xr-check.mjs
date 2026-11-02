@@ -6,9 +6,15 @@
 //  3. the left stick walks forward, the right stick snap-turns, walls stop a walk;
 //  4. the right stick's teleport arc lands on the floor;
 //  5. the trigger at a painting stands the visitor in front of it, facing it; B goes back;
-//  6. leaving VR puts the 2D view back upright.
+//  6. A / X jump to the next / previous room; an arc aimed up through a doorway lands in the next room; the right
+//     stick pulled back steps back;
+//  7. with floors (e.g. claude-monet): the elevator's badge opens its doors, the visitor walks into the car, a floor
+//     badge rides to that floor and VR goes on there, the visitor in its car;
+//     with end doors (e.g. caravaggio): a door's exit badge leads to the next gallery, still in VR;
+//  8. leaving VR puts the 2D view back upright.
 //
-//   node scripts/xr-check.mjs <slug> [baseUrl]
+//   node scripts/xr-check.mjs <slug> [baseUrl] [doors]   # slug: an artist, or "<artist>/floor/<n>"; "doors": the
+//                                                       # end doors' check where there is an elevator too
 //
 // Uses the page's test hook (window.__MUSEUM_DEBUG__). Writes screenshots to verify-artifacts/; exits 1 on a
 // failure.
@@ -21,6 +27,7 @@ const IWER_JS = fs.readFileSync(require.resolve("iwer").replace(/lib[\\/]index\.
 
 const slug = process.argv[2] ?? "caravaggio";
 const base = process.argv[3] ?? "http://localhost:3000";
+const preferDoors = process.argv[4] === "doors";
 const OUT = "verify-artifacts";
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -70,6 +77,45 @@ const stick = (hand, x, y) =>
 const button = (hand, id, v) =>
   page.evaluate(([h, id, v]) => window.__xrDevice.controllers[h].updateButtonValue(id, v), [hand, id, v]);
 const angle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+/** Point a controller from the eye at a place in the gallery (the headset space is the rig's: session.ts). */
+const aimAt = (hand, at, pitchOverride) =>
+  page.evaluate(
+    ([hand, at, pitchOverride]) => {
+      const m = window.__museum;
+      const v = m.xr.viewer();
+      const d = window.__xrDevice;
+      const hq = d.quaternion;
+      const headYaw = Math.atan2(2 * (hq.w * hq.y + hq.x * hq.z), 1 - 2 * (hq.y * hq.y + hq.x * hq.x));
+      // rig: gallery = rotY(ry) · headset + (rx, rz)
+      const ry = v.yaw - headYaw;
+      const c = Math.cos(ry);
+      const s = Math.sin(ry);
+      const rx = v.x - (c * d.position.x + s * d.position.z);
+      const rz = v.z - (-s * d.position.x + c * d.position.z);
+      const gx = at[0] - rx;
+      const gz = at[2] - rz;
+      const lx = c * gx - s * gz;
+      const lz = s * gx + c * gz;
+      const ctl = d.controllers[hand];
+      ctl.position.set(d.position.x, d.position.y, d.position.z);
+      const dx = lx - d.position.x;
+      const dy = at[1] - d.position.y;
+      const dz = lz - d.position.z;
+      const yaw = Math.atan2(-dx, -dz);
+      const pitch = pitchOverride ?? Math.atan2(dy, Math.hypot(dx, dz));
+      // YXZ: yaw about Y, then pitch about X
+      const cy = Math.cos(yaw / 2), sy = Math.sin(yaw / 2), cp = Math.cos(pitch / 2), sp = Math.sin(pitch / 2);
+      ctl.quaternion.set(cy * sp, sy * cp, -sy * sp, cy * cp);
+    },
+    [hand, at, pitchOverride ?? null]
+  );
+const press = async (hand, id) => {
+  await button(hand, id, 1);
+  await sleep(150);
+  await button(hand, id, 0);
+};
+const place = (x, z, yaw) => page.evaluate(([x, z, yaw]) => window.__museum.xr.place(x, z, yaw), [x, z, yaw]);
+const badges = () => page.evaluate(() => window.__museum.badges());
 
 try {
   await page.goto(`${base}/museum/${slug}`, { waitUntil: "domcontentloaded" });
@@ -89,7 +135,7 @@ try {
     before: [before.x.toFixed(2), before.z.toFixed(2)],
     start: [start.x.toFixed(2), start.z.toFixed(2)],
   });
-  await page.screenshot({ path: `${OUT}/xr-${slug}-enter.png` });
+  await page.screenshot({ path: `${OUT}/xr-${slug.replaceAll("/", "-")}-enter.png` });
 
   // 2. layers: every object on a non-zero layer is seen by both eyes
   const eyes = await page.evaluate(() => {
@@ -146,7 +192,7 @@ try {
   });
   await stick("right", 0, -1);
   await sleep(400);
-  await page.screenshot({ path: `${OUT}/xr-${slug}-teleport-aim.png` });
+  await page.screenshot({ path: `${OUT}/xr-${slug.replaceAll("/", "-")}-teleport-aim.png` });
   await stick("right", 0, 0);
   await sleep(300);
   const tele = await eye();
@@ -164,36 +210,9 @@ try {
     const pl = layout.placements
       .filter((p) => p.room === room)
       .sort((a, b) => Math.hypot(a.position[0] - cx, a.position[2] - cz) - Math.hypot(b.position[0] - cx, b.position[2] - cz))[0];
-    if (!pl) return null;
-    // gallery -> headset space: the rig is the camera's world pose times the headset pose's inverse (yaw only)
-    const d = window.__xrDevice;
-    const hq = d.quaternion;
-    const headYaw = Math.atan2(2 * (hq.w * hq.y + hq.x * hq.z), 1 - 2 * (hq.y * hq.y + hq.x * hq.x));
-    const q = camera.quaternion;
-    const camYaw = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.x * q.x));
-    const ry = camYaw - headYaw;
-    const c = Math.cos(ry);
-    const s = Math.sin(ry);
-    const rx = cx - (c * d.position.x + s * d.position.z);
-    const rz = cz - (-s * d.position.x + c * d.position.z);
-    const gx = pl.position[0] - rx;
-    const gz = pl.position[2] - rz;
-    const lx = c * gx - s * gz;
-    const lz = s * gx + c * gz;
-    const ly = pl.position[1];
-    // the controller at the eye, pointing at the work
-    const ctl = d.controllers.right;
-    ctl.position.set(d.position.x, d.position.y, d.position.z);
-    const dx = lx - d.position.x;
-    const dy = ly - d.position.y;
-    const dz = lz - d.position.z;
-    const yaw = Math.atan2(-dx, -dz);
-    const pitch = Math.atan2(dy, Math.hypot(dx, dz));
-    // YXZ: yaw about Y, then pitch about X
-    const cy = Math.cos(yaw / 2), sy = Math.sin(yaw / 2), cp = Math.cos(pitch / 2), sp = Math.sin(pitch / 2);
-    ctl.quaternion.set(cy * sp, sy * cp, -sy * sp, cy * cp);
-    return { slug: pl.painting.slug, x: pl.position[0], z: pl.position[2], rotationY: pl.rotationY };
+    return pl ? { slug: pl.painting.slug, x: pl.position[0], y: pl.position[1], z: pl.position[2] } : null;
   });
+  if (aimed) await aimAt("right", [aimed.x, aimed.y, aimed.z]);
   if (!aimed) check("a painting in the room to aim at", false);
   else {
     await sleep(200);
@@ -210,7 +229,7 @@ try {
       metres: dist.toFixed(2),
       facingOffDeg: ((facing * 180) / Math.PI).toFixed(1),
     });
-    await page.screenshot({ path: `${OUT}/xr-${slug}-inspect.png` });
+    await page.screenshot({ path: `${OUT}/xr-${slug.replaceAll("/", "-")}-inspect.png` });
     await button("right", "b-button", 1);
     await sleep(150);
     await button("right", "b-button", 0);
@@ -222,7 +241,127 @@ try {
     });
   }
 
-  // 6. leave
+  // 6. rooms: A / X, an arc through a doorway, a step back
+  const rooms = await page.evaluate(() => window.__museum.layout.rooms.length);
+  if (rooms > 1) {
+    await place(0, (await page.evaluate(() => window.__museum.layout.hallLength)) / 2 - 3, 0);
+    await sleep(400);
+    const r0 = (await eye()).room;
+    await press("right", "a-button");
+    await sleep(700);
+    const r1 = (await eye()).room;
+    check("A jumps to the next room", r1 === r0 + 1, { from: r0, to: r1 });
+    await press("left", "x-button");
+    await sleep(700);
+    const r2 = (await eye()).room;
+    check("X jumps back to the room before", r2 === r0, { room: r2 });
+
+    // stand 3.5 m before the first doorway, facing it, and aim well up through it (45°)
+    const door = await page.evaluate(() => {
+      const d = window.__museum.layout.doorways[0];
+      return { x: d.x, z: d.z, t: d.thickness, h: d.height };
+    });
+    await place(door.x, door.z + door.t / 2 + 3.5, 0);
+    await sleep(400);
+    await aimAt("right", [door.x, 1.6, door.z - 3], Math.PI / 4);
+    await stick("right", 0, -1);
+    await sleep(300);
+    await page.screenshot({ path: `${OUT}/xr-${slug.replaceAll("/", "-")}-doorway-arc.png` });
+    await stick("right", 0, 0);
+    await sleep(600);
+    const through = await eye();
+    check("an arc aimed up through a doorway lands in the next room", through.z < door.z - door.t / 2, {
+      doorHeight: door.h,
+      z: through.z.toFixed(2),
+      doorway: door.z.toFixed(2),
+      room: through.room,
+    });
+
+    const before = await eye();
+    await stick("right", 0, 1);
+    await sleep(150);
+    await stick("right", 0, 0);
+    await sleep(150);
+    const stepped = await eye();
+    const backDist = (stepped.x - before.x) * Math.sin(before.yaw) + (stepped.z - before.z) * Math.cos(before.yaw);
+    check("right stick back steps back ~0.5 m", backDist > 0.4 && backDist < 0.6, { metres: backDist.toFixed(2) });
+  }
+
+  // 7. the elevator (a gallery with floors), or the end doors
+  const spots = await page.evaluate(() => {
+    const l = window.__museum.layout;
+    return { lift: l.elevator, exits: l.exits, hall: l.hallLength };
+  });
+  if (spots.lift && !(preferDoors && spots.exits)) {
+    const zw = spots.hall / 2;
+    await place(spots.lift.x, zw - 1.6, Math.PI);
+    await sleep(500);
+    const call = (await badges()).find((b) => b.icon === "lift");
+    check("the elevator has a call badge", !!call?.shown, { badges: (await badges()).length });
+    if (call) {
+      await aimAt("right", call.at);
+      await sleep(150);
+      await press("right", "trigger");
+      await sleep(2600);
+      await stick("left", 0, -1);
+      await sleep(2000);
+      await stick("left", 0, 0);
+      await sleep(200);
+      const inCar = await eye();
+      check("the doors open and the visitor walks into the car", inCar.z > zw + 0.2, { z: inCar.z.toFixed(2), wall: zw });
+      await page.screenshot({ path: `${OUT}/xr-${slug.replaceAll("/", "-")}-in-car.png` });
+      const floorBadge = (await badges()).find((b) => b.icon === "floor" && b.shown);
+      check("the car has floor badges", !!floorBadge, { floor: floorBadge?.text });
+      if (floorBadge) {
+        const url = page.url();
+        await page.evaluate(() => (window.__museum.old = true));
+        await aimAt("right", floorBadge.at);
+        await sleep(150);
+        await press("right", "trigger");
+        await page.waitForURL((u) => u.toString() !== url, { timeout: 20000 });
+        await page.waitForFunction(() => window.__museum && !window.__museum.old && window.__museum.gl.xr.isPresenting, null, { timeout: 20000 });
+        await sleep(1500);
+        const there = await eye();
+        const hall2 = await page.evaluate(() => window.__museum.layout.hallLength);
+        check("riding to another floor stays in VR, the visitor in its car", there.presenting && there.z > hall2 / 2 - 0.2, {
+          url: page.url().replace(base, ""),
+          z: there.z.toFixed(2),
+          wall: (hall2 / 2).toFixed(2),
+        });
+        await sleep(1500);
+        check("its doors open on arrival", await page.evaluate(() => window.__museum.liftCar.open === true));
+        await page.screenshot({ path: `${OUT}/xr-${slug.replaceAll("/", "-")}-arrived-by-lift.png` });
+        await stick("left", 0, -1);
+        await sleep(2000);
+        await stick("left", 0, 0);
+        await sleep(200);
+        const out = await eye();
+        check("and walks out of the car into the hall", out.z < hall2 / 2 - 0.5, { z: out.z.toFixed(2) });
+      }
+    }
+  } else if (spots.exits) {
+    const zw = -spots.hall / 2;
+    await place(0, zw + 4, 0);
+    await sleep(1500);
+    const exit = (await badges()).find((b) => b.icon === "exit" && b.shown);
+    check("the end doors have exit badges", !!exit, { badges: (await badges()).filter((b) => b.icon === "exit").length });
+    if (exit) {
+      const url = page.url();
+      await page.evaluate(() => (window.__museum.old = true));
+      await aimAt("right", exit.at);
+      await sleep(300);
+      await page.screenshot({ path: `${OUT}/xr-${slug.replaceAll("/", "-")}-exit-badges.png` });
+      await press("right", "trigger");
+      await page.waitForURL((u) => u.toString() !== url, { timeout: 20000 });
+      await page.waitForFunction(() => window.__museum && !window.__museum.old && window.__museum.gl.xr.isPresenting, null, { timeout: 20000 });
+      await sleep(1500);
+      const there = await eye();
+      check("an exit badge leads to the next gallery, still in VR", there.presenting, { url: page.url().replace(base, "") });
+      await page.screenshot({ path: `${OUT}/xr-${slug.replaceAll("/", "-")}-next-gallery.png` });
+    }
+  }
+
+  // 8. leave
   await page.evaluate(() => window.__museum.gl.xr.getSession().end());
   await sleep(500);
   const after = await eye();

@@ -38,6 +38,7 @@ import { SourceLink } from "@/components/timeline/SourceLink";
 import { ScreeningHud, useScreening } from "@/components/cinema/ScreeningHud";
 import { TouchStick } from "./TouchStick";
 import { EnterVR } from "./xr/EnterVR";
+import { carryXR, fadeOut, isInXR } from "./xr/session";
 
 const FOV = 55;
 /** Let the title on the doors register before they part. */
@@ -532,6 +533,18 @@ export function MuseumApp({
       // Fetch the chosen floor during the elevator animation, never the whole museum in advance.
       router.prefetch(to.href);
       duckMusic(0.25, 0.8);
+      if (isInXR()) {
+        // in VR the visitor stands in the car: its doors close, the view goes black, and the session goes on to
+        // the other floor (xr/session.ts carryXR), where they stand in its car
+        await Promise.race([liftApi.current?.close() ?? Promise.resolve(), new Promise((r) => setTimeout(r, 1500))]);
+        try {
+          sessionStorage.setItem(LIFT_KEY, "1");
+        } catch {}
+        await fadeOut();
+        carryXR("lift");
+        router.push(to.href);
+        return;
+      }
       const call = liftApi.current?.call(dir) ?? Promise.resolve();
       await Promise.race([call, new Promise((r) => setTimeout(r, 2600))]);
       try {
@@ -548,6 +561,11 @@ export function MuseumApp({
     rideRef.current = ride;
   }, [ride]);
   const pressLift = useCallback((dir: LiftDirection) => void rideRef.current(dir), []);
+  /** A floor chosen in the car (VR). */
+  const rideTo = useCallback(
+    (to: number) => void rideRef.current(to > floorNo ? "up" : "down", to),
+    [floorNo]
+  );
   const goToLift = useCallback(() => jump((api) => api?.toElevator()), [jump]);
   // ---- the films' corner: walking in behind its wall (or the top bar's Films, which takes one there), the film
   // showing goes on (else the first); whoever walks out leaves it paused (FilmNook), and the music comes back
@@ -634,6 +652,14 @@ export function MuseumApp({
       setFading(true);
       if (document.pointerLockElement) document.exitPointerLock();
       const href = exitHref(side);
+      if (isInXR()) {
+        // VR goes on in the next gallery (xr/session.ts carryXR), the visitor at its entrance
+        void fadeOut().then(() => {
+          carryXR("door");
+          router.push(href);
+        });
+        return;
+      }
       setTimeout(() => router.push(href), JUMP_FADE_MS + 200);
     },
     [leaving, exitHref, router]
@@ -682,9 +708,10 @@ export function MuseumApp({
             apiRef: liftApi,
             onNear: setNearLift,
             onPress: pressLift,
+            onRide: rideTo,
           }
         : undefined,
-    [layout.elevator, floorInfo, floorNo, arrivedByLift, pressLift]
+    [layout.elevator, floorInfo, floorNo, arrivedByLift, pressLift, rideTo]
   );
   useEffect(() => {
     if (!walkEnabled || !layout.elevator || (!up && !down) || (atEnd && !nearLift)) return;
